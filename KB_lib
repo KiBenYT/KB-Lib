@@ -1,0 +1,1068 @@
+-- KB Lib v1.0 --
+
+-- 70% by KiBenBlox/KiBen_devv, 30% Gemini --
+
+local MarketplaceService = game:GetService("MarketplaceService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local HttpService = game:GetService("HttpService")
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+
+-- Referências de Client
+local Player = RunService:IsClient() and Players.LocalPlayer or nil
+local PlayerGui = Player and Player:WaitForChild("PlayerGui", 5) or nil
+local PlayerMouse = Player and Player:GetMouse() or nil
+
+local KBLib = {}
+KBLib.CreatedInstances = {}
+
+KBLib.Theme = {
+	Background = Color3.fromRGB(30, 30, 30),     -- Preto quase absoluto (Fundo)
+	MainFrame = Color3.fromRGB(40, 40, 40),      -- Preto suave (Janelas internas / Elementos)
+	Border = Color3.fromRGB(52, 52, 52),         -- Cinza escuro/médio (Bordas e contornos)
+	White = Color3.fromRGB(255, 255, 255),       -- Branco puro (Textos principais e ícones)
+	Muted = Color3.fromRGB(150, 150, 150)        -- Cinza claro para detalhes secundários
+}
+
+-- Sistema de Notificações
+function KBLib:Notify(titleText, contentText, duration)
+	titleText = titleText or "Notificação"
+	contentText = contentText or "Conteúdo de notificação"
+	duration = duration or 4
+
+	local ScreenGui = PlayerGui:FindFirstChild("KBLib_Gui") or PlayerGui:FindFirstChild("KBLib_NotificationsGui")
+	if not ScreenGui then
+		ScreenGui = Instance.new("ScreenGui")
+		ScreenGui.Name = "KBLib_NotificationsGui"
+		ScreenGui.ResetOnSpawn = false
+		ScreenGui.Parent = PlayerGui
+	end
+
+	local NotifyHolder = ScreenGui:FindFirstChild("NotifyHolder")
+	if not NotifyHolder then
+		NotifyHolder = Instance.new("Frame")
+		NotifyHolder.Name = "NotifyHolder"
+		NotifyHolder.Size = UDim2.new(0, 250, 1, -40)
+		NotifyHolder.Position = UDim2.new(1, -260, 0, 20)
+		NotifyHolder.BackgroundTransparency = 1
+		NotifyHolder.Parent = ScreenGui
+
+		local ListLayout = Instance.new("UIListLayout")
+		ListLayout.VerticalAlignment = Enum.VerticalAlignment.Bottom
+		ListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+		ListLayout.Padding = UDim.new(0, 8)
+		ListLayout.Parent = NotifyHolder
+	end
+
+	-- Estrutura da Notificação
+	local NotifyFrame = Instance.new("Frame")
+	NotifyFrame.Name = "Notification"
+	NotifyFrame.Size = UDim2.new(1, 0, 0, 65)
+	NotifyFrame.Position = UDim2.new(1, 50, 0, 0)
+	NotifyFrame.BackgroundColor3 = KBLib.Theme.MainFrame
+	NotifyFrame.BackgroundTransparency = 1
+	NotifyFrame.BorderSizePixel = 0
+	NotifyFrame.Parent = NotifyHolder
+
+	local Corner = Instance.new("UICorner", NotifyFrame)
+	Corner.CornerRadius = UDim.new(0, 5)
+
+	local Stroke = Instance.new("UIStroke", NotifyFrame)
+	Stroke.Color = KBLib.Theme.Border
+	Stroke.Thickness = 1
+	Stroke.Transparency = 1
+
+	local Title = Instance.new("TextLabel")
+	Title.Size = UDim2.new(1, -16, 0, 22)
+	Title.Position = UDim2.new(0, 8, 0, 4)
+	Title.BackgroundTransparency = 1
+	Title.Text = titleText
+	Title.TextColor3 = KBLib.Theme.White
+	Title.Font = Enum.Font.Nunito
+	Title.TextSize = 14
+	Title.TextXAlignment = Enum.TextXAlignment.Left
+	Title.TextTransparency = 1
+	Title.Parent = NotifyFrame
+
+	local Content = Instance.new("TextLabel")
+	Content.Size = UDim2.new(1, -16, 1, -30)
+	Content.Position = UDim2.new(0, 8, 0, 24)
+	Content.BackgroundTransparency = 1
+	Content.Text = contentText
+	Content.TextColor3 = KBLib.Theme.Muted
+	Content.Font = Enum.Font.Nunito
+	Content.TextSize = 13
+	Content.TextWrapped = true
+	Content.TextXAlignment = Enum.TextXAlignment.Left
+	Content.TextYAlignment = Enum.TextYAlignment.Top
+	Content.TextTransparency = 1
+	Content.Parent = NotifyFrame
+
+	-- Tweens
+	local tweenInfoIn = TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+
+	local tweenInFrame = TweenService:Create(NotifyFrame, tweenInfoIn, {Position = UDim2.new(0, 0, 0, 0), BackgroundTransparency = 0})
+	local tweenInStroke = TweenService:Create(Stroke, tweenInfoIn, {Transparency = 0})
+	local tweenInTitle = TweenService:Create(Title, tweenInfoIn, {TextTransparency = 0})
+	local tweenInContent = TweenService:Create(Content, tweenInfoIn, {TextTransparency = 0})
+
+	tweenInFrame:Play()
+	tweenInStroke:Play()
+	tweenInTitle:Play()
+	tweenInContent:Play()
+
+	-- Deleta automaticamente com efeito de Fade Out
+	task.delay(duration, function()
+		local tweenInfoOut = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+		local tweenOutFrame = TweenService:Create(NotifyFrame, tweenInfoOut, {BackgroundTransparency = 1})
+		local tweenOutStroke = TweenService:Create(Stroke, tweenInfoOut, {Transparency = 1})
+		local tweenOutTitle = TweenService:Create(Title, tweenInfoOut, {TextTransparency = 1})
+		local tweenOutContent = TweenService:Create(Content, tweenInfoOut, {TextTransparency = 1})
+
+		tweenOutFrame:Play()
+		tweenOutStroke:Play()
+		tweenOutTitle:Play()
+		tweenOutContent:Play()
+
+		tweenOutFrame.Completed:Connect(function()
+			NotifyFrame:Destroy()
+		end)
+	end)
+end
+
+-- Método para criar a Janela Principal da UI (Estilo B/W)
+function KBLib:CreateWindow(titleText)
+	print("[KBLib] Credits: KiBenBlox, Gemini")
+
+	titleText = titleText or "Unknown | Any game"
+
+	-- 1. Cria a ScreenGui que vai abrigar tudo
+	local ScreenGui = Instance.new("ScreenGui")
+	ScreenGui.Name = "KBLib_Gui"
+	ScreenGui.ResetOnSpawn = false
+	ScreenGui.IgnoreGuiInset = true
+	ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	ScreenGui.Parent = PlayerGui or game:GetService("CoreGui") 
+
+	-- 2. Frame Principal (O corpo escuro da UI)
+	local MainFrame = Instance.new("Frame")
+	MainFrame.Name = "MainFrame"
+	MainFrame.Size = UDim2.new(0, 525, 0, 315)
+	MainFrame.Position = UDim2.new(0.5, -262, 0.5, -157) -- Centralizado na tela
+	MainFrame.BackgroundColor3 = KBLib.Theme.Background
+	MainFrame.BorderSizePixel = 0
+	MainFrame.Active = true
+	MainFrame.Draggable = true -- Deixa arrastar a janela pela tela
+	MainFrame.Parent = ScreenGui
+
+	-- Arredonda os cantos da janela principal
+	local MainCorner = Instance.new("UICorner")
+	MainCorner.CornerRadius = UDim.new(0, 5)
+	MainCorner.Parent = MainFrame
+
+	-- Borda fina para dar o contraste B/W no contorno
+	local MainStroke = Instance.new("UIStroke")
+	MainStroke.Color = KBLib.Theme.Border
+	MainStroke.Thickness = 1.5
+	MainStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	MainStroke.Parent = MainFrame
+
+	-- 3. Barra de Topo (Onde fica o título e os botões de controle)
+	local TopBar = Instance.new("Frame")
+	TopBar.Name = "TopBar"
+	TopBar.Size = UDim2.new(1, 0, 0, 35)
+	TopBar.BackgroundColor3 = KBLib.Theme.MainFrame
+	TopBar.BorderSizePixel = 0
+	TopBar.Parent = MainFrame
+
+	local TopCorner = Instance.new("UICorner")
+	TopCorner.CornerRadius = UDim.new(0, 5)
+	TopCorner.Parent = TopBar
+
+	-- Linha divisória fina embaixo do título
+	local Divider = Instance.new("Frame")
+	Divider.Name = "Divider"
+	Divider.Size = UDim2.new(1, 0, 0, 1)
+	Divider.Position = UDim2.new(0, 0, 1, -1)
+	Divider.BackgroundColor3 = KBLib.Theme.Border
+	Divider.BorderSizePixel = 0
+	Divider.Parent = TopBar
+
+	-- 4. Texto do Título
+	local TitleLabel = Instance.new("TextLabel")
+	TitleLabel.Name = "TitleLabel"
+	TitleLabel.Size = UDim2.new(1, -80, 1, 0)
+	TitleLabel.Position = UDim2.new(0, 12, 0, 0)
+	TitleLabel.BackgroundTransparency = 1
+	TitleLabel.Text = titleText
+	TitleLabel.TextColor3 = KBLib.Theme.White
+	TitleLabel.TextSize = 16
+	TitleLabel.Font = Enum.Font.Nunito
+	TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+	TitleLabel.Parent = TopBar
+
+	-- 5. Container dos Botões das Abas (Lado Esquerdo)
+	local TabButtonsContainer = Instance.new("Frame")
+	TabButtonsContainer.Name = "TabButtonsContainer"
+	TabButtonsContainer.Size = UDim2.new(0, 120, 1, -45)
+	TabButtonsContainer.Position = UDim2.new(0, 5, 0, 40)
+	TabButtonsContainer.BackgroundTransparency = 1
+	TabButtonsContainer.Parent = MainFrame
+
+	-- Alinha os botões automaticamente um embaixo do outro
+	local TabListLayout = Instance.new("UIListLayout")
+	TabListLayout.Padding = UDim.new(0, 4)
+	TabListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	TabListLayout.Parent = TabButtonsContainer
+
+	-- 6. Container onde vão ficar as páginas das Abas (Lado Direito)
+	local PagesContainer = Instance.new("Frame")
+	PagesContainer.Name = "PagesContainer"
+	PagesContainer.Size = UDim2.new(1, -135, 1, -45)
+	PagesContainer.Position = UDim2.new(0, 130, 0, 40)
+	PagesContainer.BackgroundTransparency = 1
+	PagesContainer.Parent = MainFrame
+
+	-- Guarda as instâncias para controle interno da Lib
+	table.insert(KBLib.CreatedInstances, ScreenGui)
+
+	-- Retorna o objeto da janela com suas funções próprias
+	local WindowObject = {}
+	WindowObject.Frame = MainFrame
+	WindowObject.Gui = ScreenGui
+
+	-- [SISTEMA POP-UP DE CONFIRMAÇÃO/AVISO (WARN)]
+	function WindowObject:Warn(warnTitle, warnContent, onConfirm)
+		warnTitle = warnTitle or "Aviso"
+		warnContent = warnContent or "Deseja prosseguir com essa ação?"
+		onConfirm = onConfirm or function() end
+
+		-- Bloqueador de cliques no fundo enquanto o pop-up estiver aberto
+		local Overlay = Instance.new("Frame")
+		Overlay.Name = "WarnOverlay"
+		Overlay.Size = UDim2.new(1, 0, 1, 0)
+		Overlay.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+		Overlay.BackgroundTransparency = 0.5
+		Overlay.Active = true
+		Overlay.Parent = ScreenGui
+
+		-- Caixa do Pop-up centralizada
+		local WarnBox = Instance.new("Frame")
+		WarnBox.Name = "WarnBox"
+		WarnBox.Size = UDim2.new(0, 320, 0, 140)
+		WarnBox.Position = UDim2.new(0.5, -160, 0.5, -70)
+		WarnBox.BackgroundColor3 = KBLib.Theme.Background
+		WarnBox.BorderSizePixel = 0
+		WarnBox.Parent = Overlay
+
+		local BoxCorner = Instance.new("UICorner")
+		BoxCorner.CornerRadius = UDim.new(0, 5)
+		BoxCorner.Parent = WarnBox
+
+		local BoxStroke = Instance.new("UIStroke")
+		BoxStroke.Color = KBLib.Theme.Border
+		BoxStroke.Thickness = 1.5
+		BoxStroke.Parent = WarnBox
+
+		-- Título do Warn
+		local BoxTitle = Instance.new("TextLabel")
+		BoxTitle.Size = UDim2.new(1, 0, 0, 30)
+		BoxTitle.Position = UDim2.new(0, 0, 0, 5)
+		BoxTitle.BackgroundTransparency = 1
+		BoxTitle.Text = warnTitle
+		BoxTitle.TextColor3 = KBLib.Theme.White
+		BoxTitle.Font = Enum.Font.Nunito
+		BoxTitle.TextSize = 16
+		BoxTitle.Parent = WarnBox
+
+		-- Conteúdo do Warn
+		local BoxDesc = Instance.new("TextLabel")
+		BoxDesc.Size = UDim2.new(1, -20, 0, 45)
+		BoxDesc.Position = UDim2.new(0, 10, 0, 35)
+		BoxDesc.BackgroundTransparency = 1
+		BoxDesc.Text = warnContent
+		BoxDesc.TextColor3 = KBLib.Theme.Muted
+		BoxDesc.Font = Enum.Font.Nunito
+		BoxDesc.TextSize = 14
+		BoxDesc.TextWrapped = true
+		BoxDesc.Parent = WarnBox
+
+		-- Botão SIM (Confirmação)
+		local YesBtn = Instance.new("TextButton")
+		YesBtn.Size = UDim2.new(0, 100, 0, 30)
+		YesBtn.Position = UDim2.new(0.5, -110, 1, -40)
+		YesBtn.BackgroundColor3 = KBLib.Theme.MainFrame
+		YesBtn.Text = "Sim"
+		YesBtn.TextColor3 = KBLib.Theme.White
+		YesBtn.Font = Enum.Font.Nunito
+		YesBtn.TextSize = 14
+		YesBtn.AutoButtonColor = false
+		YesBtn.Parent = WarnBox
+
+		Instance.new("UICorner", YesBtn).CornerRadius = UDim.new(0, 4)
+		local YesStroke = Instance.new("UIStroke", YesBtn)
+		YesStroke.Color = KBLib.Theme.Border
+
+		-- Botão NÃO (Cancela)
+		local NoBtn = Instance.new("TextButton")
+		NoBtn.Size = UDim2.new(0, 100, 0, 30)
+		NoBtn.Position = UDim2.new(0.5, 10, 1, -40)
+		NoBtn.BackgroundColor3 = KBLib.Theme.MainFrame
+		NoBtn.Text = "Não"
+		NoBtn.TextColor3 = KBLib.Theme.White
+		NoBtn.Font = Enum.Font.Nunito
+		NoBtn.TextSize = 14
+		NoBtn.AutoButtonColor = false
+		NoBtn.Parent = WarnBox
+
+		Instance.new("UICorner", NoBtn).CornerRadius = UDim.new(0, 4)
+		local NoStroke = Instance.new("UIStroke", NoBtn)
+		NoStroke.Color = KBLib.Theme.Border
+
+		-- Funcionalidades dos botões do Pop-up
+		YesBtn.MouseButton1Click:Connect(function()
+			Overlay:Destroy()
+			pcall(onConfirm)
+		end)
+
+		NoBtn.MouseButton1Click:Connect(function()
+			Overlay:Destroy()
+		end)
+	end
+
+	-- Configuração do Botão Fechar original disparando o nosso método Warn integrado!
+	local CloseButton = Instance.new("TextButton")
+	CloseButton.Name = "CloseButton"
+	CloseButton.Size = UDim2.new(0, 30, 0, 30)
+	CloseButton.Position = UDim2.new(1, -35, 0, 2)
+	CloseButton.BackgroundTransparency = 1
+	CloseButton.Text = "×"
+	CloseButton.TextColor3 = KBLib.Theme.Muted
+	CloseButton.Font = Enum.Font.Nunito
+	CloseButton.TextSize = 22
+	CloseButton.AutoButtonColor = false
+	CloseButton.Parent = TopBar
+
+	CloseButton.MouseEnter:Connect(function() CloseButton.TextColor3 = KBLib.Theme.White end)
+	CloseButton.MouseLeave:Connect(function() CloseButton.TextColor3 = KBLib.Theme.Muted end)
+
+	CloseButton.MouseButton1Click:Connect(function()
+		-- Aciona a janela de confirmação customizada com o texto que você pediu!
+		WindowObject:Warn("Fechar", "Você tem certeza que quer fechar este script?", function()
+			print("[KBLib] Closing GUI..")
+			ScreenGui:Destroy()
+		end)
+	end)
+
+	-- [SISTEMA DE MINIMIZAR OPTIONAL]
+	function WindowObject:CreateMinimizeButton(customArg)
+		local MiniBarButton = Instance.new("TextButton")
+		MiniBarButton.Name = "MiniBarButton"
+		MiniBarButton.Size = UDim2.new(0, 30, 0, 30)
+		MiniBarButton.Position = UDim2.new(1, -65, 0, 2)
+		MiniBarButton.BackgroundTransparency = 1
+		MiniBarButton.Text = "−"
+		MiniBarButton.TextColor3 = KBLib.Theme.Muted
+		MiniBarButton.Font = Enum.Font.Nunito
+		MiniBarButton.TextSize = 20
+		MiniBarButton.AutoButtonColor = false
+		MiniBarButton.Parent = TopBar
+
+		MiniBarButton.MouseEnter:Connect(function() MiniBarButton.TextColor3 = KBLib.Theme.White end)
+		MiniBarButton.MouseLeave:Connect(function() MiniBarButton.TextColor3 = KBLib.Theme.Muted end)
+
+		local FloatingBtn = Instance.new("TextButton")
+		FloatingBtn.Name = "KBLib_MinimizeTracker"
+		FloatingBtn.Size = UDim2.new(0, 45, 0, 45)
+		FloatingBtn.Position = UDim2.new(0, 15, 0.85, 0)
+		FloatingBtn.BackgroundColor3 = KBLib.Theme.MainFrame
+		FloatingBtn.BorderSizePixel = 0
+		FloatingBtn.Active = true
+		FloatingBtn.Draggable = true
+		FloatingBtn.Visible = false
+		FloatingBtn.AutoButtonColor = false
+		FloatingBtn.Parent = ScreenGui
+
+		local FloatCorner = Instance.new("UICorner")
+		FloatCorner.CornerRadius = UDim.new(0, 8)
+		FloatCorner.Parent = FloatingBtn
+
+		local FloatStroke = Instance.new("UIStroke")
+		FloatStroke.Color = KBLib.Theme.Border
+		FloatStroke.Thickness = 1.2
+		FloatStroke.Parent = FloatingBtn
+
+		local isId = tonumber(customArg)
+		if isId then
+			FloatingBtn.Text = ""
+			local FloatIcon = Instance.new("ImageLabel")
+			FloatIcon.Name = "FloatIcon"
+			FloatIcon.Size = UDim2.new(0, 26, 0, 26)
+			FloatIcon.Position = UDim2.new(0.5, -13, 0.5, -13)
+			FloatIcon.BackgroundTransparency = 1
+			FloatIcon.Image = "rbxassetid://" .. tostring(isId)
+			FloatIcon.ImageColor3 = KBLib.Theme.White
+			FloatIcon.Parent = FloatingBtn
+		else
+			local textToApply = tostring(customArg or "Open")
+			FloatingBtn.Text = textToApply
+			FloatingBtn.TextColor3 = KBLib.Theme.White
+			FloatingBtn.Font = Enum.Font.Nunito
+			FloatingBtn.TextSize = 14
+			if string.len(textToApply) > 4 then
+				FloatingBtn.Size = UDim2.new(0, 90, 0, 35)
+			end
+		end
+
+		MiniBarButton.MouseButton1Click:Connect(function()
+			MainFrame.Visible = false
+			FloatingBtn.Visible = true
+		end)
+
+		FloatingBtn.MouseButton1Click:Connect(function()
+			FloatingBtn.Visible = false
+			MainFrame.Visible = true
+		end)
+		return FloatingBtn
+	end
+
+	-- Método para criar Abas dentro desta janela
+	function WindowObject:CreateTab(tabName, decalId)
+		tabName = tabName or "Aba"
+
+		local TabButton = Instance.new("TextButton")
+		TabButton.Name = tabName.."_Btn"
+		TabButton.Size = UDim2.new(1, 0, 0, 30)
+		TabButton.BackgroundColor3 = KBLib.Theme.MainFrame
+		TabButton.BorderSizePixel = 0
+		TabButton.Text = "" 
+		TabButton.AutoButtonColor = false 
+		TabButton.Parent = TabButtonsContainer
+
+		local BtnCorner = Instance.new("UICorner")
+		BtnCorner.CornerRadius = UDim.new(0, 4)
+		BtnCorner.Parent = TabButton
+
+		local BtnStroke = Instance.new("UIStroke")
+		BtnStroke.Color = KBLib.Theme.Border
+		BtnStroke.Thickness = 1
+		BtnStroke.Transparency = 0.7
+		BtnStroke.Parent = TabButton
+
+		local BtnTextLabel = Instance.new("TextLabel")
+		BtnTextLabel.Name = "BtnTextLabel"
+		BtnTextLabel.BackgroundTransparency = 1
+		BtnTextLabel.Font = Enum.Font.Nunito
+		BtnTextLabel.TextSize = 15
+		BtnTextLabel.Text = tabName
+		BtnTextLabel.TextColor3 = KBLib.Theme.White
+		BtnTextLabel.Parent = TabButton
+
+		if decalId then
+			local Icon = Instance.new("ImageLabel")
+			Icon.Name = "TabIcon"
+			Icon.Size = UDim2.new(0, 18, 0, 18)
+			Icon.Position = UDim2.new(0, 8, 0.5, -9)
+			Icon.BackgroundTransparency = 1
+			Icon.Image = "rbxassetid://" .. tostring(decalId)
+			Icon.ImageColor3 = KBLib.Theme.White
+			Icon.Parent = TabButton
+
+			BtnTextLabel.Size = UDim2.new(1, -34, 1, 0)
+			BtnTextLabel.Position = UDim2.new(0, 32, 0, 0)
+			BtnTextLabel.TextXAlignment = Enum.TextXAlignment.Left
+		else
+			BtnTextLabel.Size = UDim2.new(1, 0, 1, 0)
+			BtnTextLabel.Position = UDim2.new(0, 0, 0, 0)
+			BtnTextLabel.TextXAlignment = Enum.TextXAlignment.Center
+		end
+
+		local TabPage = Instance.new("ScrollingFrame")
+		TabPage.Name = tabName.."_Page"
+		TabPage.Size = UDim2.new(1, 0, 1, 0)
+		TabPage.BackgroundTransparency = 1
+		TabPage.BorderSizePixel = 0
+		TabPage.ScrollBarThickness = 2
+		TabPage.ScrollBarImageColor3 = KBLib.Theme.White
+		TabPage.Visible = false
+		TabPage.Parent = PagesContainer
+
+		local PageListLayout = Instance.new("UIListLayout")
+		PageListLayout.Padding = UDim.new(0, 6)
+		PageListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+		PageListLayout.Parent = TabPage
+
+		if #TabButtonsContainer:GetChildren() == 2 then
+			TabPage.Visible = true
+			BtnTextLabel.TextColor3 = KBLib.Theme.White
+			TabButton.BackgroundColor3 = KBLib.Theme.Border
+			if TabButton:FindFirstChild("TabIcon") then
+				TabButton.TabIcon.ImageColor3 = KBLib.Theme.White
+			end
+		end
+
+		TabButton.MouseButton1Click:Connect(function()
+			for _, page in ipairs(PagesContainer:GetChildren()) do
+				if page:IsA("GuiObject") then page.Visible = false end
+			end
+			for _, btn in ipairs(TabButtonsContainer:GetChildren()) do
+				if btn:IsA("TextButton") then 
+					btn.BackgroundColor3 = KBLib.Theme.MainFrame
+					if btn:FindFirstChild("BtnTextLabel") then
+						btn.BtnTextLabel.TextColor3 = KBLib.Theme.White
+					end
+					if btn:FindFirstChild("TabIcon") then
+						btn.TabIcon.ImageColor3 = KBLib.Theme.White
+					end
+				end
+			end
+
+			TabPage.Visible = true
+			BtnTextLabel.TextColor3 = KBLib.Theme.White
+			TabButton.BackgroundColor3 = KBLib.Theme.Border
+			if TabButton:FindFirstChild("TabIcon") then
+				TabButton.TabIcon.ImageColor3 = KBLib.Theme.White
+			end
+		end)
+
+		local TabObject = {}
+		TabObject.Page = TabPage
+
+		function TabObject:CreateButton(btnText, callback)
+			btnText = btnText or "Botão"
+			callback = callback or function() end
+
+			local ElementButton = Instance.new("TextButton")
+			ElementButton.Name = btnText.."_Element"
+			ElementButton.Size = UDim2.new(1, -10, 0, 32)
+			ElementButton.BackgroundColor3 = KBLib.Theme.MainFrame
+			ElementButton.BorderSizePixel = 0
+			ElementButton.Text = btnText
+			ElementButton.TextColor3 = KBLib.Theme.White
+			ElementButton.Font = Enum.Font.Nunito
+			ElementButton.TextSize = 15
+			ElementButton.AutoButtonColor = false
+
+			-- ⚠️ A CORREÇÃO AQUI: Alinha o texto na esquerda igual ao Dropdown!
+			ElementButton.TextXAlignment = Enum.TextXAlignment.Left
+
+			ElementButton.Parent = TabPage
+
+			-- ⚠️ O SEGREDO DO DESIGN: Dá um espaço de 10 pixels na esquerda pro texto não grudar na borda
+			local ButtonPadding = Instance.new("UIPadding")
+			ButtonPadding.PaddingLeft = UDim.new(0, 10)
+			ButtonPadding.Parent = ElementButton
+
+			local ElementCorner = Instance.new("UICorner")
+			ElementCorner.CornerRadius = UDim.new(0, 4)
+			ElementCorner.Parent = ElementButton
+
+			local ElementStroke = Instance.new("UIStroke")
+			ElementStroke.Color = KBLib.Theme.Border
+			ElementStroke.Thickness = 1
+			ElementStroke.Transparency = 0.6
+			ElementStroke.Parent = ElementButton
+
+			ElementButton.MouseButton1Down:Connect(function()
+				ElementStroke.Transparency = 0.1
+			end)
+			ElementButton.MouseButton1Up:Connect(function()
+				ElementStroke.Transparency = 0.6
+			end)
+
+			ElementButton.MouseButton1Click:Connect(function()
+				pcall(callback)
+			end)
+
+			return ElementButton
+		end
+		
+		-- [NOVO MÉTODO] Função para criar Toggles (Botões de Ativar/Desativar)
+		function TabObject:CreateToggle(toggleText, default, callback)
+			toggleText = toggleText or "Toggle"
+			callback = callback or function() end
+
+			local ToggleState = (default == true) -- Estado interno (true/false)
+
+			-- Base do Toggle (Onde fica o texto e o quadradinho)
+			local ToggleFrame = Instance.new("Frame")
+			ToggleFrame.Name = toggleText.."_Toggle"
+			ToggleFrame.Size = UDim2.new(1, -10, 0, 32)
+			ToggleFrame.BackgroundColor3 = KBLib.Theme.MainFrame
+			ToggleFrame.BorderSizePixel = 0
+			ToggleFrame.Parent = TabPage
+
+			Instance.new("UICorner", ToggleFrame).CornerRadius = UDim.new(0, 4)
+			local FrameStroke = Instance.new("UIStroke", ToggleFrame)
+			FrameStroke.Color = KBLib.Theme.Border
+			FrameStroke.Thickness = 1
+			FrameStroke.Transparency = 0.6
+
+			-- Texto descritivo do Toggle
+			local ToggleLabel = Instance.new("TextLabel")
+			ToggleLabel.Size = UDim2.new(1, -50, 1, 0)
+			ToggleLabel.Position = UDim2.new(0, 10, 0, 0)
+			ToggleLabel.BackgroundTransparency = 1
+			ToggleLabel.Text = toggleText
+			ToggleLabel.TextColor3 = KBLib.Theme.White
+			ToggleLabel.Font = Enum.Font.Nunito
+			ToggleLabel.TextSize = 15
+			ToggleLabel.TextXAlignment = Enum.TextXAlignment.Left
+			ToggleLabel.Parent = ToggleFrame
+
+			-- O quadradinho visual do botão (Status)
+			local Box = Instance.new("Frame")
+			Box.Name = "StatusBox"
+			Box.Size = UDim2.new(0, 18, 0, 18)
+			Box.Position = UDim2.new(1, -28, 0.5, -9)
+			Box.BackgroundColor3 = ToggleState and KBLib.Theme.White or KBLib.Theme.Background
+			Box.BorderSizePixel = 0
+			Box.Parent = ToggleFrame
+
+			Instance.new("UICorner", Box).CornerRadius = UDim.new(0, 3)
+			local BoxStroke = Instance.new("UIStroke", Box)
+			BoxStroke.Color = KBLib.Theme.Border
+			BoxStroke.Thickness = 1
+
+			-- Botão invisível por cima de tudo para capturar o clique
+			local ClickBtn = Instance.new("TextButton")
+			ClickBtn.Size = UDim2.new(1, 0, 1, 0)
+			ClickBtn.BackgroundTransparency = 1
+			ClickBtn.Text = ""
+			ClickBtn.Parent = ToggleFrame
+
+			-- Função visual de atualização do tema Monocromático
+			local function updateVisual()
+				if ToggleState then
+					Box.BackgroundColor3 = KBLib.Theme.White
+					BoxStroke.Color = KBLib.Theme.White
+				else
+					Box.BackgroundColor3 = KBLib.Theme.Background
+					BoxStroke.Color = KBLib.Theme.Border
+				end
+			end
+			updateVisual() -- Roda uma vez para aplicar o padrão (default)
+
+			-- Evento de Clique
+			ClickBtn.MouseButton1Click:Connect(function()
+				ToggleState = not ToggleState
+				updateVisual()
+				pcall(callback, ToggleState)
+			end)
+
+			-- Retorna um objeto para caso você queira alterar o estado via script depois
+			local ToggleObject = {}
+			function ToggleObject:Set(state)
+				ToggleState = state
+				updateVisual()
+				pcall(callback, ToggleState)
+			end
+			return ToggleObject
+		end 
+		
+		-- [NOVO MÉTODO] Função para criar Labels (Textos Informativos)
+		function TabObject:CreateLabel(labelText)
+
+			labelText = labelText or "Texto informativo"
+
+			-- Frame que serve de linha de texto
+			local LabelFrame = Instance.new("Frame")
+			LabelFrame.Name = "Label_Element"
+			LabelFrame.Size = UDim2.new(1, -10, 0, 24) -- Mais fino que um botão para ficar estético
+			LabelFrame.BackgroundTransparency = 1 -- Totalmente invisível para destacar apenas o texto
+			LabelFrame.BorderSizePixel = 0
+			LabelFrame.Parent = TabPage
+
+			-- O texto em si
+			local TextLabel = Instance.new("TextLabel")
+			TextLabel.Size = UDim2.new(1, 0, 1, 0)
+			TextLabel.BackgroundTransparency = 1
+			TextLabel.Text = labelText
+			TextLabel.TextColor3 = KBLib.Theme.Muted -- Começa com cinza para não brigar com os botões
+			TextLabel.Font = Enum.Font.Nunito
+			TextLabel.TextSize = 14
+			TextLabel.TextXAlignment = Enum.TextXAlignment.Left -- Alinhado à esquerda para seguir o padrão
+			TextLabel.Parent = LabelFrame
+
+			-- Retorna um objeto para você poder atualizar o texto se quiser (ex: fazer um contador)
+			local LabelObject = {}
+			function LabelObject:UpdateText(newText)
+				TextLabel.Text = tostring(newText)
+			end
+
+			return LabelObject
+		end
+		
+		-- [NOVO MÉTODO] Função para criar Dropdowns (Menus de Opções)
+		function TabObject:CreateDropdown(dropdownText, optionsList, callback)
+			dropdownText = dropdownText or "Dropdown"
+			optionsList = optionsList or {}
+			callback = callback or function() end
+
+			local IsOpened = false
+			local SelectedValue = nil
+
+			-- Container Principal (Ajusta o tamanho automaticamente quando abre)
+			local DropdownFrame = Instance.new("Frame")
+			DropdownFrame.Name = dropdownText.."_Dropdown"
+			DropdownFrame.Size = UDim2.new(1, -10, 0, 32) -- Tamanho fechado padrão
+			DropdownFrame.BackgroundColor3 = KBLib.Theme.MainFrame
+			DropdownFrame.BorderSizePixel = 0
+			DropdownFrame.ClipsDescendants = true -- Esconde as opções quando fechado
+			DropdownFrame.Parent = TabPage
+
+			local FrameCorner = Instance.new("UICorner")
+			FrameCorner.CornerRadius = UDim.new(0, 4)
+			FrameCorner.Parent = DropdownFrame
+
+			local FrameStroke = Instance.new("UIStroke")
+			FrameStroke.Color = KBLib.Theme.Border
+			FrameStroke.Thickness = 1
+			FrameStroke.Transparency = 0.6
+			FrameStroke.Parent = DropdownFrame
+
+			-- Botão de Clique da Barra Superior do Dropdown
+			local TopBarBtn = Instance.new("TextButton")
+			TopBarBtn.Size = UDim2.new(1, 0, 0, 32)
+			TopBarBtn.BackgroundTransparency = 1
+			TopBarBtn.Text = ""
+			TopBarBtn.Parent = DropdownFrame
+
+			-- Texto mostrando o Nome ou a Opção Selecionada
+			local TitleLabel = Instance.new("TextLabel")
+			TitleLabel.Size = UDim2.new(1, -40, 1, 0)
+			TitleLabel.Position = UDim2.new(0, 10, 0, 0)
+			TitleLabel.BackgroundTransparency = 1
+			TitleLabel.Text = dropdownText .. ": ..."
+			TitleLabel.TextColor3 = KBLib.Theme.White
+			TitleLabel.Font = Enum.Font.Nunito
+			TitleLabel.TextSize = 14
+			TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+			TitleLabel.Parent = TopBarBtn
+
+			-- Indicador Visual (Seta ou Símbolo de abrir/fechar)
+			local Indicator = Instance.new("TextLabel")
+			Indicator.Size = UDim2.new(0, 30, 0, 32)
+			Indicator.Position = UDim2.new(1, -30, 0, 0)
+			Indicator.BackgroundTransparency = 1
+			Indicator.Text = "▼"
+			Indicator.TextColor3 = KBLib.Theme.Muted
+			Indicator.Font = Enum.Font.Nunito
+			Indicator.TextSize = 12
+			Indicator.Parent = TopBarBtn
+
+			-- Container que vai segurar a lista de botões das opções
+			local OptionsContainer = Instance.new("Frame")
+			OptionsContainer.Name = "OptionsContainer"
+			OptionsContainer.Size = UDim2.new(1, 0, 1, -32)
+			OptionsContainer.Position = UDim2.new(0, 0, 0, 32)
+			OptionsContainer.BackgroundTransparency = 1
+			OptionsContainer.Parent = DropdownFrame
+
+			local OptionsLayout = Instance.new("UIListLayout")
+			OptionsLayout.SortOrder = Enum.SortOrder.LayoutOrder
+			OptionsLayout.Padding = UDim.new(0, 2)
+			OptionsLayout.Parent = OptionsContainer
+
+			-- Função interna para atualizar o tamanho do frame principal do dropdown
+			local function toggleDropdown()
+				IsOpened = not IsOpened
+				if IsOpened then
+					Indicator.Text = "▲"
+					-- Calcula o tamanho total somando a barra do topo + altura de todas as opções
+					local totalOptionsHeight = #optionsList * 26
+					DropdownFrame.Size = UDim2.new(1, -10, 0, 32 + totalOptionsHeight + 4)
+				else
+					Indicator.Text = "▼"
+					DropdownFrame.Size = UDim2.new(1, -10, 0, 32)
+				end
+				-- Atualiza o Canvas da página do Roblox para ajustar o Scroll automaticamente
+				if TabPage:IsA("ScrollingFrame") then
+					TabPage.CanvasSize = UDim2.new(0, 0, 0, TabPage.UIListLayout.AbsoluteContentSize.Y + 20)
+				end
+			end
+
+			TopBarBtn.MouseButton1Click:Connect(toggleDropdown)
+
+			-- Criando os botões de cada opção da lista
+			for index, optionName in ipairs(optionsList) do
+				local OptionBtn = Instance.new("TextButton")
+				OptionBtn.Name = optionName.."_Option"
+				OptionBtn.Size = UDim2.new(1, -8, 0, 24)
+				OptionBtn.Position = UDim2.new(0, 4, 0, 0)
+				OptionBtn.BackgroundColor3 = KBLib.Theme.Background -- Cor de fundo contrastando levemente
+				OptionBtn.BorderSizePixel = 0
+				OptionBtn.Text = tostring(optionName)
+				OptionBtn.TextColor3 = KBLib.Theme.Muted
+				OptionBtn.Font = Enum.Font.Nunito
+				OptionBtn.TextSize = 13
+				OptionBtn.AutoButtonColor = false
+				OptionBtn.LayoutOrder = index
+				OptionBtn.Parent = OptionsContainer
+
+				local OptionCorner = Instance.new("UICorner")
+				OptionCorner.CornerRadius = UDim.new(0, 3)
+				OptionCorner.Parent = OptionBtn
+
+				-- Efeitos de Hover (Passar o mouse)
+				OptionBtn.MouseEnter:Connect(function() OptionBtn.TextColor3 = KBLib.Theme.White end)
+				OptionBtn.MouseLeave:Connect(function() OptionBtn.TextColor3 = KBLib.Theme.Muted end)
+
+				-- Evento ao selecionar a opção
+				OptionBtn.MouseButton1Click:Connect(function()
+					SelectedValue = optionName
+					TitleLabel.Text = dropdownText .. ": " .. tostring(optionName)
+					toggleDropdown() -- Fecha o menu após escolher
+					pcall(callback, optionName)
+				end)
+			end
+
+			-- Retorna um objeto para controle via script externo
+			local DropdownObject = {}
+
+			-- Seleciona uma opção específica via script
+			function DropdownObject:Set(value)
+				SelectedValue = value
+				TitleLabel.Text = dropdownText .. ": " .. tostring(value)
+				pcall(callback, value)
+			end
+
+			-- NOVO ELEMENTO: Atualiza a lista de opções (Perfeito para o loop de Players do KTG)
+			function DropdownObject:Refresh(newList)
+				optionsList = newList or {} -- Atualiza a lista interna de opções
+
+				-- 1. Limpa os botões antigos das opções
+				for _, child in pairs(OptionsContainer:GetChildren()) do
+					if child:IsA("TextButton") then
+						child:Destroy()
+					end
+				end
+
+				-- 2. Cria os novos botões com os nicks atualizados
+				for index, optionName in ipairs(optionsList) do
+					local OptionBtn = Instance.new("TextButton")
+					OptionBtn.Name = optionName.."_Option"
+					OptionBtn.Size = UDim2.new(1, -8, 0, 24)
+					OptionBtn.Position = UDim2.new(0, 4, 0, 0)
+					OptionBtn.BackgroundColor3 = KBLib.Theme.Background
+					OptionBtn.BorderSizePixel = 0
+					OptionBtn.Text = tostring(optionName)
+					OptionBtn.TextColor3 = KBLib.Theme.Muted
+					OptionBtn.Font = Enum.Font.Nunito
+					OptionBtn.TextSize = 13
+					OptionBtn.AutoButtonColor = false
+					OptionBtn.LayoutOrder = index
+					OptionBtn.Parent = OptionsContainer
+
+					local OptionCorner = Instance.new("UICorner")
+					OptionCorner.CornerRadius = UDim.new(0, 3)
+					OptionCorner.Parent = OptionBtn
+
+					-- Efeitos de Hover
+					OptionBtn.MouseEnter:Connect(function() OptionBtn.TextColor3 = KBLib.Theme.White end)
+					OptionBtn.MouseLeave:Connect(function() OptionBtn.TextColor3 = KBLib.Theme.Muted end)
+
+					-- Evento ao selecionar a nova opção
+					OptionBtn.MouseButton1Click:Connect(function()
+						SelectedValue = optionName
+						TitleLabel.Text = dropdownText .. ": " .. tostring(optionName)
+						if IsOpened then
+							-- Chama a função toggleDropdown original para fechar o menu
+							IsOpened = false
+							Indicator.Text = "▼"
+							DropdownFrame.Size = UDim2.new(1, -10, 0, 32)
+						end
+						pcall(callback, optionName)
+					end)
+				end
+
+				-- 3. Se o menu estiver aberto na hora do update, reajusta o tamanho dele na tela
+				if IsOpened then
+					local totalOptionsHeight = #optionsList * 26
+					DropdownFrame.Size = UDim2.new(1, -10, 0, 32 + totalOptionsHeight + 4)
+				end
+			end
+
+			return DropdownObject
+		end
+		
+		-- [NOVO MÉTODO] Função para criar TextBox (Caixa de Entrada de Texto)
+		function TabObject:CreateTextBox(placeholderText, callback)
+			placeholderText = placeholderText or "Type anything here..."
+			callback = callback or function() end
+
+			-- Frame de fundo da caixa de texto
+			local BoxFrame = Instance.new("Frame")
+			BoxFrame.Name = "TextBox_Element"
+			BoxFrame.Size = UDim2.new(1, -10, 0, 32)
+			BoxFrame.BackgroundColor3 = KBLib.Theme.MainFrame
+			BoxFrame.BorderSizePixel = 0
+			BoxFrame.Parent = TabPage
+
+			local FrameCorner = Instance.new("UICorner")
+			FrameCorner.CornerRadius = UDim.new(0, 4)
+			FrameCorner.Parent = BoxFrame
+
+			local FrameStroke = Instance.new("UIStroke")
+			FrameStroke.Color = KBLib.Theme.Border
+			FrameStroke.Thickness = 1
+			FrameStroke.Transparency = 0.6
+			FrameStroke.Parent = BoxFrame
+
+			-- A caixa de entrada onde o player clica e digita
+			local TextBox = Instance.new("TextBox")
+			TextBox.Size = UDim2.new(1, -16, 1, 0)
+			TextBox.Position = UDim2.new(0, 8, 0, 0)
+			TextBox.BackgroundTransparency = 1
+			TextBox.Text = ""
+			TextBox.PlaceholderText = placeholderText
+			TextBox.PlaceholderColor3 = KBLib.Theme.Muted
+			TextBox.TextColor3 = KBLib.Theme.White
+			TextBox.Font = Enum.Font.Nunito
+			TextBox.TextSize = 14
+			TextBox.TextXAlignment = Enum.TextXAlignment.Left
+			TextBox.ClearTextOnFocus = false -- Não apaga o que já tava escrito ao clicar
+			TextBox.Parent = BoxFrame
+
+			-- Quando o player clica fora ou aperta Enter, dispara a função
+			TextBox.FocusLost:Connect(function(enterPressed)
+				pcall(callback, TextBox.Text, enterPressed)
+			end)
+
+			-- Retorna o objeto para controle se precisar limpar o texto via script
+			local TextBoxObject = {}
+			function TextBoxObject:SetText(newText)
+				TextBox.Text = tostring(newText)
+			end
+			return TextBoxObject
+		end
+		
+		-- [NOVO MÉTODO] Função para criar Slider (Barra Deslizante)
+		function TabObject:CreateSlider(sliderText, min, max, default, callback)
+			print("[KBLib] Creating slider '"..sliderText.."' inside tab '"..tabName.."'")
+
+			sliderText = sliderText or "Slider"
+			min = min or 0
+			max = max or 100
+			default = default or min
+			callback = callback or function() end
+
+			local Value = default
+			local Dragging = false
+
+			-- Container do Slider
+			local SliderFrame = Instance.new("Frame")
+			SliderFrame.Name = sliderText.."_Slider"
+			SliderFrame.Size = UDim2.new(1, -10, 0, 40) -- Um pouco mais alto para caber a barra embaixo
+			SliderFrame.BackgroundColor3 = KBLib.Theme.MainFrame
+			SliderFrame.BorderSizePixel = 0
+			SliderFrame.Parent = TabPage
+
+			Instance.new("UICorner", SliderFrame).CornerRadius = UDim.new(0, 4)
+			local FrameStroke = Instance.new("UIStroke", SliderFrame)
+			FrameStroke.Color = KBLib.Theme.Border
+			FrameStroke.Thickness = 1
+			FrameStroke.Transparency = 0.6
+
+			-- Texto do Slider (Nome)
+			local TitleLabel = Instance.new("TextLabel")
+			TitleLabel.Size = UDim2.new(1, -60, 0, 20)
+			TitleLabel.Position = UDim2.new(0, 10, 0, 2)
+			TitleLabel.BackgroundTransparency = 1
+			TitleLabel.Text = sliderText
+			TitleLabel.TextColor3 = KBLib.Theme.White
+			TitleLabel.Font = Enum.Font.Nunito
+			TitleLabel.TextSize = 14
+			TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+			TitleLabel.Parent = SliderFrame
+
+			-- Texto do Valor Atual (Fica na direita)
+			local ValueLabel = Instance.new("TextLabel")
+			ValueLabel.Size = UDim2.new(0, 50, 0, 20)
+			ValueLabel.Position = UDim2.new(1, -60, 0, 2)
+			ValueLabel.BackgroundTransparency = 1
+			ValueLabel.Text = tostring(default)
+			ValueLabel.TextColor3 = KBLib.Theme.Muted
+			ValueLabel.Font = Enum.Font.Nunito
+			ValueLabel.TextSize = 14
+			ValueLabel.TextXAlignment = Enum.TextXAlignment.Right
+			ValueLabel.Parent = SliderFrame
+
+			-- Trilho de fundo da barra
+			local SliderTrack = Instance.new("Frame")
+			SliderTrack.Name = "SliderTrack"
+			SliderTrack.Size = UDim2.new(1, -20, 0, 4)
+			SliderTrack.Position = UDim2.new(0, 10, 0, 26)
+			SliderTrack.BackgroundColor3 = KBLib.Theme.Background
+			SliderTrack.BorderSizePixel = 0
+			SliderTrack.Parent = SliderFrame
+			Instance.new("UICorner", SliderTrack).CornerRadius = UDim.new(0, 2)
+
+			-- A barra que enche (Visual do progresso)
+			local SliderFill = Instance.new("Frame")
+			SliderFill.Name = "SliderFill"
+			SliderFill.Size = UDim2.new(math.clamp((default - min) / (max - min), 0, 1), 0, 1, 0)
+			SliderFill.BackgroundColor3 = KBLib.Theme.White -- Acende em branco no estilo B/W
+			SliderFill.BorderSizePixel = 0
+			SliderFill.Parent = SliderTrack
+			Instance.new("UICorner", SliderFill).CornerRadius = UDim.new(0, 2)
+
+			-- Botão invisível para detectar o clique e arrasto no trilho
+			local SliderBtn = Instance.new("TextButton")
+			SliderBtn.Size = UDim2.new(1, 0, 1, 0)
+			SliderBtn.BackgroundTransparency = 1
+			SliderBtn.Text = ""
+			SliderBtn.Parent = SliderTrack
+
+			-- Lógica de arrastar matemática do Slider
+			local function updateSlider()
+				local mouseX = UserInputService:GetMouseLocation().X
+				local trackX = SliderTrack.AbsolutePosition.X
+				local trackWidth = SliderTrack.AbsoluteSize.X
+				local percentage = math.clamp((mouseX - trackX) / trackWidth, 0, 1)
+
+				Value = math.floor(min + (max - min) * percentage)
+				ValueLabel.Text = tostring(Value)
+				SliderFill.Size = UDim2.new(percentage, 0, 1, 0)
+
+				pcall(callback, Value)
+			end
+
+			SliderBtn.InputBegan:Connect(function(input)
+				if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+					Dragging = true
+					updateSlider()
+				end
+			end)
+
+			UserInputService.InputEnded:Connect(function(input)
+				if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+					Dragging = false
+				end
+			end)
+
+			UserInputService.InputChanged:Connect(function(input)
+				if Dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+					updateSlider()
+				end
+			end)
+
+			-- Retorna o objeto para poder alterar o valor do slider via código externo
+			local SliderObject = {}
+			function SliderObject:Set(newValue)
+				Value = math.clamp(newValue, min, max)
+				ValueLabel.Text = tostring(Value)
+				SliderFill.Size = UDim2.new(math.clamp((Value - min) / (max - min), 0, 1), 0, 1, 0)
+				pcall(callback, Value)
+			end
+			return SliderObject
+		end
+
+		return TabObject
+	end
+
+	return WindowObject
+end
+
+return KBLib
