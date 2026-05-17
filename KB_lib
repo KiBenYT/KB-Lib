@@ -1,6 +1,6 @@
 -- KB Lib v1.0 --
 
--- 70% by KiBenBlox/KiBen_devv, 30% Gemini --
+-- By KiBenBlox/KiBen_devv with a small use of AI --
 
 local MarketplaceService = game:GetService("MarketplaceService")
 local UserInputService = game:GetService("UserInputService")
